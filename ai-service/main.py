@@ -196,6 +196,7 @@ Si tu ne trouves rien, réponds :
 
     return response["message"]["content"]
 
+
 class Question(BaseModel):
     question: str
 
@@ -235,7 +236,60 @@ def assistant(data: Question):
             reponse = f"Il y a {total} véhicules enregistrés."
 
         # ------------------------------------
-        # Nombre par marque
+        # Nombre par table (facture / tva / virement / versement /
+        # email / rappel / notification)
+        # ------------------------------------
+
+        elif "combien" in question and "facture" in question:
+
+            total = conn.execute(
+                text("SELECT COUNT(*) FROM invoices")
+            ).scalar()
+
+            reponse = f"Il y a {total} facture(s) enregistrée(s)."
+
+        elif "combien" in question and "virement" in question:
+
+            total = conn.execute(
+                text("SELECT COUNT(*) FROM virements")
+            ).scalar()
+
+            reponse = f"Il y a {total} virement(s) enregistré(s)."
+
+        elif "combien" in question and "versement" in question:
+
+            total = conn.execute(
+                text("SELECT COUNT(*) FROM versements")
+            ).scalar()
+
+            reponse = f"Il y a {total} versement(s) enregistré(s)."
+
+        elif "combien" in question and "email" in question:
+
+            total = conn.execute(
+                text("SELECT COUNT(*) FROM emails")
+            ).scalar()
+
+            reponse = f"Il y a {total} email(s) enregistré(s)."
+
+        elif "combien" in question and "rappel" in question:
+
+            total = conn.execute(
+                text("SELECT COUNT(*) FROM rappels")
+            ).scalar()
+
+            reponse = f"Il y a {total} rappel(s) enregistré(s)."
+
+        elif "combien" in question and "notification" in question:
+
+            total = conn.execute(
+                text("SELECT COUNT(*) FROM notifications")
+            ).scalar()
+
+            reponse = f"Il y a {total} notification(s) enregistrée(s)."
+
+        # ------------------------------------
+        # Nombre par marque (fallback générique pour "combien")
         # ------------------------------------
 
         elif "combien" in question:
@@ -284,7 +338,11 @@ def assistant(data: Question):
             mots_a_ignorer = [
                 "facture", "factures", "mois", "quelles", "quels", "quelle", "quel",
                 "sont", "les", "des", "une", "est", "que", "qui", "pour",
-                "dans", "avec", "cette", "ces", "cet"
+                "dans", "avec", "cette", "ces", "cet",
+                "liste", "listez", "listes", "toutes", "toute", "tous", "tout",
+                "affiche", "affichez", "afficher", "montre", "montrez", "montrer",
+                "voir", "donne", "donnez", "donner", "peux", "peut", "veux",
+                "voudrais", "avoir", "moi", "toi"
             ]
 
             mots = [
@@ -323,6 +381,151 @@ def assistant(data: Question):
 
             else:
                 reponse = "Aucune facture ne correspond à votre recherche."
+
+        # ------------------------------------
+        # TVA
+        # ------------------------------------
+
+        elif "tva" in question:
+
+            lignes = conn.execute(text("""
+                SELECT numero, montant_ht, tva, montant_ttc
+                FROM invoices
+                ORDER BY date_facture DESC
+            """)).fetchall()
+
+            if lignes:
+
+                txt = []
+
+                for l in lignes:
+                    txt.append(
+                        f"{l.numero} : HT {l.montant_ht} DH - TVA {l.tva} DH - TTC {l.montant_ttc} DH"
+                    )
+
+                reponse = "\n".join(txt)
+
+            else:
+                reponse = "Aucune TVA trouvée."
+
+        # ------------------------------------
+        # VIREMENTS
+        # ------------------------------------
+
+        elif "virement" in question:
+
+            lignes = conn.execute(text("""
+                SELECT numero, beneficiaire, montant, statut, date_virement
+                FROM virements
+            """)).fetchall()
+
+            if lignes:
+
+                txt = []
+
+                for l in lignes:
+                    txt.append(
+                        f"{l.numero} - {l.beneficiaire} - {l.montant} DH - {l.statut}"
+                    )
+
+                reponse = "\n".join(txt)
+
+            else:
+                reponse = "Aucun virement."
+
+        # ------------------------------------
+        # VERSEMENTS
+        # ------------------------------------
+
+        elif "versement" in question:
+
+            lignes = conn.execute(text("""
+                SELECT reference, client, montant, date_versement
+                FROM versements
+            """)).fetchall()
+
+            if lignes:
+
+                txt = []
+
+                for l in lignes:
+                    txt.append(
+                        f"{l.reference} - {l.client} - {l.montant} DH"
+                    )
+
+                reponse = "\n".join(txt)
+
+            else:
+                reponse = "Aucun versement."
+
+        # ------------------------------------
+        # EMAILS
+        # ------------------------------------
+
+        elif "email" in question:
+
+            lignes = conn.execute(text("""
+                SELECT destinataire, objet, date_generation
+                FROM emails
+            """)).fetchall()
+
+            if lignes:
+
+                txt = []
+
+                for l in lignes:
+                    txt.append(
+                        f"{l.destinataire} - {l.objet}"
+                    )
+
+                reponse = "\n".join(txt)
+
+            else:
+                reponse = "Aucun email."
+
+        # ------------------------------------
+        # RAPPELS
+        # ------------------------------------
+
+        elif "rappel" in question:
+
+            lignes = conn.execute(text("""
+                SELECT titre, date_rappel, termine
+                FROM rappels
+                ORDER BY date_rappel
+            """)).fetchall()
+
+            if lignes:
+
+                txt = []
+
+                for l in lignes:
+                    etat = "Terminé" if l.termine else "En attente"
+
+                    txt.append(
+                        f"{l.titre} - {l.date_rappel} - {etat}"
+                    )
+
+                reponse = "\n".join(txt)
+
+            else:
+                reponse = "Aucun rappel."
+
+        # ------------------------------------
+        # NOTIFICATIONS
+        # ------------------------------------
+
+        elif "notification" in question:
+
+            lignes = conn.execute(text("""
+                SELECT message, created_at
+                FROM notifications
+            """)).fetchall()
+
+            if lignes:
+                reponse = "\n".join([l.message for l in lignes])
+            else:
+                reponse = "Aucune notification."
 
         # ------------------------------------
         # Tous les propriétaires
@@ -396,46 +599,42 @@ def assistant(data: Question):
             reponse = "\n".join([l.immatriculation for l in lignes])
 
         # ------------------------------------
-        # Recherche intelligente
+        # Aucune règle trouvée -> Gemma
         # ------------------------------------
 
         else:
 
-            lignes = conn.execute(text("""
-                SELECT
-                    nom_proprietaire,
-                    marque,
-                    modele,
-                    immatriculation
+            contexte = ""
+
+            docs = conn.execute(text("""
+                SELECT nom_proprietaire, marque, modele, immatriculation
                 FROM documents
             """)).fetchall()
 
-            resultat = []
+            factures = conn.execute(text("""
+                SELECT numero, client, objet, montant_ttc
+                FROM invoices
+            """)).fetchall()
 
-            for l in lignes:
+            for d in docs:
+                contexte += f"""
+Propriétaire : {d.nom_proprietaire}
+Marque : {d.marque}
+Modèle : {d.modele}
+Immatriculation : {d.immatriculation}
 
-                nom = (l.nom_proprietaire or "").lower()
-                marque = (l.marque or "").lower()
-                modele = (l.modele or "").lower()
-                imm = (l.immatriculation or "").lower()
+"""
 
-                if (
-                    question in nom
-                    or question in marque
-                    or question in modele
-                    or question in imm
-                ):
+            for f in factures:
+                contexte += f"""
+Facture {f.numero}
+Client : {f.client}
+Objet : {f.objet}
+Montant : {f.montant_ttc} DH
 
-                    resultat.append(
-                        f" Propriétaire : {l.nom_proprietaire}\n"
-                        f" Marque : {l.marque}\n"
-                        f" Modèle : {l.modele}\n"
-                        f" Immatriculation : {l.immatriculation}"
-                    )
+"""
 
-            if resultat:
-
-                reponse = "\n\n".join(resultat)
+            reponse = demander_gemma(question, contexte)
 
     return {
         "question": data.question,

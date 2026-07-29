@@ -36,7 +36,26 @@ class AssistantIAController extends Controller
             'question' => 'required|string|max:1000',
         ]);
 
-        $question = $request->question;
+      $question = strtolower(trim($request->question));
+      if (str_contains($question, 'facture')) {
+    // répondre depuis MySQL
+}
+
+if (str_contains($question, 'document')) {
+    // répondre depuis MySQL
+}
+
+if (str_contains($question, 'tva')) {
+    // répondre depuis MySQL
+}
+
+if (str_contains($question, 'virement')) {
+    // répondre depuis MySQL
+}
+
+if (str_contains($question, 'rappel')) {
+    // répondre depuis MySQL
+}
 
         $reponse = "Impossible de contacter l'assistant IA.";
 
