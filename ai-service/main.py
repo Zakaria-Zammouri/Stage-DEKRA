@@ -1,9 +1,10 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Form
 from pdf2image import convert_from_bytes
 from PIL import Image
 import pytesseract
 import re
 import io
+import json
 
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
@@ -42,19 +43,20 @@ def home():
     }
 
 # =================================================
-# OCR
+# OUTIL COMMUN : EXTRACTION DE TEXTE (OCR)
 # =================================================
 
-@app.post("/ocr")
-async def ocr(file: UploadFile = File(...)):
-
-    contenu = await file.read()
+def extraire_texte_document(contenu: bytes, filename: str, content_type: str) -> str:
+    """
+    Extrait le texte brut d'un PDF ou d'une image via OCR.
+    Réutilisé par /ocr et /analyser-document pour éviter la duplication.
+    """
 
     texte = ""
 
     est_pdf = (
-        file.content_type == "application/pdf"
-        or file.filename.lower().endswith(".pdf")
+        content_type == "application/pdf"
+        or filename.lower().endswith(".pdf")
     )
 
     if est_pdf:
@@ -82,7 +84,23 @@ async def ocr(file: UploadFile = File(...)):
             lang="fra+eng"
         )
 
-    texte = texte.replace("\r", "")
+    return texte.replace("\r", "")
+
+
+# =================================================
+# OCR
+# =================================================
+
+@app.post("/ocr")
+async def ocr(file: UploadFile = File(...)):
+
+    contenu = await file.read()
+
+    texte = extraire_texte_document(
+        contenu,
+        file.filename,
+        file.content_type
+    )
 
     print("============== OCR ==============")
     print(texte)
@@ -603,3 +621,135 @@ TITRE: <titre>
         "categorie": categorie,
         "titre": titre
     }
+
+
+# =================================================
+# ANALYSE DE DOCUMENT (OCR + EXTRACTION JSON via GEMMA)
+# =================================================
+
+def extraire_champs_via_gemma(texte: str, type_document: str = None) -> dict:
+    """
+    Envoie le texte OCR à Gemma et récupère un JSON structuré
+    avec le type de document et les champs extraits (facture, TVA, etc.).
+    """
+
+    consigne_type = (
+        f'Le type de document est déjà connu : "{type_document}". '
+        f'Recopie-le tel quel dans le champ type_document.'
+        if type_document else
+        'Détecte le type de document parmi EXACTEMENT ces valeurs : '
+        '"Titre de propriété", "Facture", "Reçu", "Virement", "Autre".'
+    )
+
+    prompt = f"""
+Tu es CentrePilot AI. Tu extrais les informations importantes d'un document administratif
+ou d'une facture pour un centre de contrôle technique automobile.
+
+{consigne_type}
+
+Voici le texte extrait par OCR (il peut contenir des erreurs de reconnaissance) :
+
+{texte[:4000]}
+
+Extrait les champs suivants s'ils sont présents. Si un champ est absent ou incertain,
+mets sa valeur à null. N'invente JAMAIS d'information absente du texte.
+
+Réponds STRICTEMENT avec un objet JSON valide, sans aucun texte avant ou après,
+sans balises markdown, au format exact suivant :
+
+{{
+  "type_document": "...",
+  "categorie": "...",
+  "titre": "...",
+  "champs": {{
+    "numero_facture": null,
+    "date": null,
+    "client": null,
+    "fournisseur": null,
+    "montant_ht": null,
+    "taux_tva": null,
+    "montant_tva": null,
+    "montant_ttc": null,
+    "mode_paiement": null,
+    "reference": null
+  }}
+}}
+"""
+
+    response = ollama.chat(
+        model="gemma3",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+    )
+
+    brut = response["message"]["content"].strip()
+
+    # Gemma ajoute parfois ```json ... ``` autour du JSON : on nettoie
+    if brut.startswith("```"):
+        brut = brut.strip("`")
+        if brut.lower().startswith("json"):
+            brut = brut[4:].strip()
+
+    data = None
+
+    try:
+        data = json.loads(brut)
+    except json.JSONDecodeError:
+
+        # Filet de sécurité : on isole la première { et la dernière }
+        debut = brut.find("{")
+        fin = brut.rfind("}")
+
+        if debut != -1 and fin != -1:
+            try:
+                data = json.loads(brut[debut:fin + 1])
+            except json.JSONDecodeError:
+                data = None
+
+    if not isinstance(data, dict):
+        data = {
+            "type_document": type_document or "Autre",
+            "categorie": "",
+            "titre": "",
+            "champs": {}
+        }
+
+    # Garantit la présence des clés attendues même si Gemma en oublie
+    data.setdefault("type_document", type_document or "Autre")
+    data.setdefault("categorie", "")
+    data.setdefault("titre", "")
+    data.setdefault("champs", {})
+
+    if type_document:
+        data["type_document"] = type_document
+
+    return data
+
+
+@app.post("/analyser-document")
+async def analyser_document(
+    file: UploadFile = File(...),
+    type_document: str = Form(None)
+):
+
+    contenu = await file.read()
+
+    texte = extraire_texte_document(
+        contenu,
+        file.filename,
+        file.content_type
+    )
+
+    print("========== ANALYSE DOCUMENT (OCR) ==========")
+    print(texte)
+    print("==============================================")
+
+    resultat = extraire_champs_via_gemma(texte, type_document)
+
+    resultat["texte"] = texte
+
+    return resultat

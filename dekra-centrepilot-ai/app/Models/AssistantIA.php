@@ -9,10 +9,20 @@ class AssistantIA extends Model
 {
     use HasFactory;
 
+    protected $table = 'assistant_i_a_s';
+
     protected $fillable = [
         'user_id',
+        'type',
         'question',
-        'reponse'
+        'reponse',
+        'fichier_nom',
+        'type_document',
+        'champs_extraits',
+    ];
+
+    protected $casts = [
+        'champs_extraits' => 'array',
     ];
 
     public function user()

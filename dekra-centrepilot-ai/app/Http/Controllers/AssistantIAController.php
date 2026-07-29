@@ -9,6 +9,11 @@ use Illuminate\Support\Facades\Http;
 class AssistantIAController extends Controller
 {
     /**
+     * URL du service Python (FastAPI + Gemma)
+     */
+    protected string $fastApiUrl = 'http://127.0.0.1:8001';
+
+    /**
      * Afficher la page Assistant IA
      */
     public function index()
@@ -21,9 +26,9 @@ class AssistantIAController extends Controller
     }
 
     /**
-     * Envoyer une question à l'IA
+     * Envoyer une question à l'IA (fonctionnalité existante, inchangée)
      */
-  public function ask(Request $request)
+    public function ask(Request $request)
     {
         set_time_limit(150);
 
@@ -38,7 +43,7 @@ class AssistantIAController extends Controller
         try {
 
             $response = Http::timeout(120)->post(
-                'http://127.0.0.1:8001/assistant-ia',
+                "{$this->fastApiUrl}/assistant-ia",
                 [
                     'question' => $question
                 ]
@@ -60,6 +65,7 @@ class AssistantIAController extends Controller
 
         AssistantIA::create([
             'user_id' => auth()->id(),
+            'type' => 'question',
             'question' => $question,
             'reponse' => $reponse,
         ]);
@@ -72,6 +78,78 @@ class AssistantIAController extends Controller
             'assistant.index',
             compact(
                 'reponse',
+                'historique'
+            )
+        );
+    }
+
+    /**
+     * NOUVELLE FONCTIONNALITÉ : analyser un document (PDF/image)
+     * OCR + classification automatique + extraction JSON structurée via Gemma
+     */
+    public function analyserDocument(Request $request)
+    {
+        set_time_limit(150);
+
+        $request->validate([
+            'file' => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240', // 10 Mo max
+            'type_document' => 'nullable|string|in:Titre de propriété,Facture,Reçu,Virement,Autre',
+        ]);
+
+        $fichier = $request->file('file');
+
+        $resultatAnalyse = [
+            'type_document' => null,
+            'categorie' => null,
+            'titre' => null,
+            'champs' => [],
+            'texte' => '',
+            'erreur' => "Impossible de contacter le service d'analyse.",
+        ];
+
+        try {
+
+            $requete = Http::timeout(120)->attach(
+                'file',
+                file_get_contents($fichier->getRealPath()),
+                $fichier->getClientOriginalName()
+            );
+
+            if ($request->filled('type_document')) {
+                $requete = $requete->attach('type_document', $request->input('type_document'));
+            }
+
+            $response = $requete->post("{$this->fastApiUrl}/analyser-document");
+
+            if ($response->successful()) {
+                $resultatAnalyse = $response->json();
+            } else {
+                $resultatAnalyse['erreur'] = "Le service d'analyse a répondu avec une erreur (code {$response->status()}).";
+            }
+
+        } catch (\Exception $e) {
+
+            $resultatAnalyse['erreur'] = "Erreur : " . $e->getMessage();
+
+        }
+
+        // Enregistrement dans le même historique que les questions, avec type = 'document'
+        AssistantIA::create([
+            'user_id' => auth()->id(),
+            'type' => 'document',
+            'fichier_nom' => $fichier->getClientOriginalName(),
+            'type_document' => $resultatAnalyse['type_document'] ?? null,
+            'champs_extraits' => $resultatAnalyse['champs'] ?? [],
+        ]);
+
+        $historique = AssistantIA::where('user_id', auth()->id())
+            ->latest()
+            ->get();
+
+        return view(
+            'assistant.index',
+            compact(
+                'resultatAnalyse',
                 'historique'
             )
         );

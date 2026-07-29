@@ -17,6 +17,7 @@ use App\Http\Controllers\JournalController;
 use App\Http\Controllers\BackupController;
 
 
+
 Route::get('/', function () {
     return view('welcome');
 });
@@ -139,6 +140,9 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/assistant', [AssistantIAController::class, 'ask'])
         ->name('assistant.ask');
+
+    Route::post('/assistant/analyser-document', [AssistantIAController::class, 'analyserDocument'])
+    ->name('assistant.analyser-document');
 
 });
 

@@ -20,6 +20,9 @@
                     Posez une question concernant vos documents enregistrés.
                 </p>
 
+                {{-- ============================================= --}}
+                {{-- FORMULAIRE : POSER UNE QUESTION (existant) --}}
+                {{-- ============================================= --}}
                 <form method="POST" action="{{ route('assistant.ask') }}">
 
                     @csrf
@@ -59,6 +62,94 @@
 
                 @endisset
 
+                {{-- ============================================= --}}
+                {{-- FORMULAIRE : ANALYSE DE DOCUMENT (nouveau) --}}
+                {{-- ============================================= --}}
+                <div class="mt-12 border-t pt-8">
+
+                    <h2 class="text-2xl font-bold mb-3">
+                        Analyse de document
+                    </h2>
+
+                    <p class="text-gray-600 dark:text-gray-300 mb-6">
+                        Téléversez une facture ou un document administratif (PDF ou image) pour en extraire
+                        automatiquement les informations importantes.
+                    </p>
+
+                    <form method="POST" action="{{ route('assistant.analyser-document') }}" enctype="multipart/form-data">
+
+                        @csrf
+
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium mb-1">
+                                Type de document (optionnel)
+                            </label>
+                            <select name="type_document"
+                                class="w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+                                <option value="">Détection automatique</option>
+                                <option value="Facture">Facture</option>
+                                <option value="Titre de propriété">Titre de propriété</option>
+                                <option value="Virement">Virement</option>
+                                <option value="Reçu">Reçu</option>
+                                <option value="Autre">Autre</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium mb-1">
+                                Fichier (PDF, JPG, PNG)
+                            </label>
+                            <input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png" required
+                                class="w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+                        </div>
+
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg">
+                            Analyser le document
+                        </button>
+
+                    </form>
+
+                    @isset($resultatAnalyse)
+
+                        @if(!empty($resultatAnalyse['erreur']) && empty($resultatAnalyse['champs']))
+
+                            <div class="mt-6 bg-red-100 border border-red-300 text-red-700 rounded-lg p-4">
+                                {{ $resultatAnalyse['erreur'] }}
+                            </div>
+
+                        @else
+
+                            <div class="mt-8">
+
+                                <span class="font-bold text-blue-600">Type détecté :</span>
+                                {{ $resultatAnalyse['type_document'] ?? 'Non déterminé' }}
+
+                                <table class="w-full mt-4 border rounded-lg overflow-hidden">
+                                    <tbody>
+                                        @foreach($resultatAnalyse['champs'] ?? [] as $cle => $valeur)
+                                            <tr class="border-b">
+                                                <td class="px-4 py-2 font-medium bg-gray-50 dark:bg-gray-900 w-1/3">
+                                                    {{ $cle }}
+                                                </td>
+                                                <td class="px-4 py-2">
+                                                    {{ $valeur ?? '—' }}
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+
+                            </div>
+
+                        @endif
+
+                    @endisset
+
+                </div>
+
+                {{-- ============================================= --}}
+                {{-- HISTORIQUE (questions ET documents) --}}
+                {{-- ============================================= --}}
                 @if(isset($historique) && $historique->count())
 
                     <div class="mt-12">
@@ -71,29 +162,55 @@
 
                             <div class="border rounded-xl p-5 mb-5">
 
-                                <div class="mb-3">
+                                @if($item->type === 'document')
 
-                                    <span class="font-bold text-blue-600">
-                                        Question
-                                    </span>
+                                    <div class="mb-3">
 
-                                    <p class="mt-2">
-                                        {{ $item->question }}
-                                    </p>
+                                        <span class="font-bold text-purple-600">
+                                            Document analysé
+                                        </span>
 
-                                </div>
+                                        <p class="mt-2">
+                                            {{ $item->fichier_nom }} — {{ $item->type_document ?? 'Type inconnu' }}
+                                        </p>
 
-                                <div>
+                                    </div>
 
-                                    <span class="font-bold text-green-600">
-                                        Réponse
-                                    </span>
+                                    @if($item->champs_extraits)
+                                        <ul class="text-sm text-gray-700 dark:text-gray-300 list-disc list-inside">
+                                            @foreach($item->champs_extraits as $cle => $valeur)
+                                                <li><strong>{{ $cle }}</strong> : {{ $valeur ?? '—' }}</li>
+                                            @endforeach
+                                        </ul>
+                                    @endif
 
-                                    <p class="mt-2 whitespace-pre-line">
-                                        {{ $item->reponse }}
-                                    </p>
+                                @else
 
-                                </div>
+                                    <div class="mb-3">
+
+                                        <span class="font-bold text-blue-600">
+                                            Question
+                                        </span>
+
+                                        <p class="mt-2">
+                                            {{ $item->question }}
+                                        </p>
+
+                                    </div>
+
+                                    <div>
+
+                                        <span class="font-bold text-green-600">
+                                            Réponse
+                                        </span>
+
+                                        <p class="mt-2 whitespace-pre-line">
+                                            {{ $item->reponse }}
+                                        </p>
+
+                                    </div>
+
+                                @endif
 
                                 <div class="text-sm text-gray-500 mt-3">
 
