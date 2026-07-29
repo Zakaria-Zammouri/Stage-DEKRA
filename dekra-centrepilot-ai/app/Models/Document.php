@@ -15,6 +15,7 @@ class Document extends Model
 
     protected $fillable = [
         'user_id',
+        'invoice_id',
         'titre',
         'type',
         'categorie',
@@ -31,5 +32,10 @@ class Document extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function invoice()
+    {
+        return $this->belongsTo(Invoice::class);
     }
 }

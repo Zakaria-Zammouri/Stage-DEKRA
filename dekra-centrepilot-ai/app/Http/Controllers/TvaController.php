@@ -11,7 +11,7 @@ use Illuminate\Http\Request;
 class TvaController extends Controller
 {
     /**
-     * Tableau de suivi de la TVA : taux configurables + récapitulatif par période.
+     * Tableau de suivi de la TVA.
      */
     public function index(Request $request)
     {
@@ -19,14 +19,16 @@ class TvaController extends Controller
             ? Carbon::parse($request->mois . '-01')
             : Carbon::now();
 
-        $rates = TvaRate::orderBy('type_vehicule')->get();
+        // On récupère uniquement le taux Moto
+        $rates = TvaRate::where('type_vehicule', 'Moto')->get();
+
         $recap = $this->buildRecap($mois);
 
         return view('tva.index', compact('rates', 'recap', 'mois'));
     }
 
     /**
-     * Mettre à jour les taux de TVA configurables.
+     * Mise à jour du taux TVA Moto.
      */
     public function updateRates(Request $request)
     {
@@ -36,16 +38,20 @@ class TvaController extends Controller
         ]);
 
         foreach ($request->taux as $id => $valeur) {
-            TvaRate::where('id', $id)->update(['taux' => $valeur]);
+            TvaRate::where('id', $id)
+                ->where('type_vehicule', 'Moto')
+                ->update([
+                    'taux' => $valeur,
+                ]);
         }
 
         return redirect()
             ->route('tva.index')
-            ->with('success', 'Taux de TVA mis à jour avec succès.');
+            ->with('success', 'Taux de TVA Moto mis à jour avec succès.');
     }
 
     /**
-     * Export PDF de l'état récapitulatif de TVA du mois sélectionné.
+     * Export PDF.
      */
     public function pdf(Request $request)
     {
@@ -57,50 +63,40 @@ class TvaController extends Controller
 
         $pdf = Pdf::loadView('tva.pdf', compact('recap', 'mois'));
 
-        return $pdf->download('Etat-TVA-' . $mois->format('Y-m') . '.pdf');
+        return $pdf->download(
+            'Etat-TVA-' . $mois->format('Y-m') . '.pdf'
+        );
     }
 
     /**
-     * Construit le récapitulatif de TVA par type de véhicule pour un mois donné.
+     * Calcul du récapitulatif TVA Moto.
      */
     private function buildRecap(Carbon $mois): array
     {
-        $types = ['Voiture', 'Moto', 'Poids lourd'];
+        $factures = Invoice::where('user_id', auth()->id())
+            ->where('type_vehicule', 'Moto')
+            ->whereYear('date_facture', $mois->year)
+            ->whereMonth('date_facture', $mois->month)
+            ->get();
 
-        $lignes = [];
-        $totalHt = 0;
-        $totalTva = 0;
-        $totalTtc = 0;
-
-        foreach ($types as $type) {
-            $factures = Invoice::where('user_id', auth()->id())
-                ->where('type_vehicule', $type)
-                ->whereYear('date_facture', $mois->year)
-                ->whereMonth('date_facture', $mois->month)
-                ->get();
-
-            $ht = $factures->sum('montant_ht');
-            $tva = $factures->sum('tva');
-            $ttc = $factures->sum('montant_ttc');
-
-            $lignes[] = [
-                'type' => $type,
-                'nombre' => $factures->count(),
-                'ht' => $ht,
-                'tva' => $tva,
-                'ttc' => $ttc,
-            ];
-
-            $totalHt += $ht;
-            $totalTva += $tva;
-            $totalTtc += $ttc;
-        }
+        $ht = $factures->sum('montant_ht');
+        $tva = $factures->sum('tva');
+        $ttc = $factures->sum('montant_ttc');
 
         return [
-            'lignes' => $lignes,
-            'total_ht' => $totalHt,
-            'total_tva' => $totalTva,
-            'total_ttc' => $totalTtc,
+            'lignes' => [
+                [
+                    'type' => 'Moto',
+                    'nombre' => $factures->count(),
+                    'ht' => $ht,
+                    'tva' => $tva,
+                    'ttc' => $ttc,
+                ]
+            ],
+
+            'total_ht' => $ht,
+            'total_tva' => $tva,
+            'total_ttc' => $ttc,
         ];
     }
 }

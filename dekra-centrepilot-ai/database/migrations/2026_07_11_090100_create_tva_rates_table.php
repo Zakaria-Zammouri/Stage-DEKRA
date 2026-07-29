@@ -20,10 +20,8 @@ return new class extends Migration
         // ⚠️ Le taux "Moto" est PROVISOIRE en attendant confirmation
         // du chef de centre (cf. cahier des charges, chapitre 6.6).
         DB::table('tva_rates')->insert([
-            ['type_vehicule' => 'Voiture', 'taux' => 20.00, 'created_at' => now(), 'updated_at' => now()],
-            ['type_vehicule' => 'Moto', 'taux' => 20.00, 'created_at' => now(), 'updated_at' => now()],
-            ['type_vehicule' => 'Poids lourd', 'taux' => 20.00, 'created_at' => now(), 'updated_at' => now()],
-        ]);
+    ['type_vehicule' => 'Moto', 'taux' => 20.00, 'created_at' => now(), 'updated_at' => now()],
+]);
     }
 
     public function down(): void

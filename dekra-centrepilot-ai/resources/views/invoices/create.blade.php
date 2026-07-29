@@ -83,15 +83,14 @@
                         Type de véhicule
                     </label>
 
-                    <select
-                        name="type_vehicule"
-                        id="type_vehicule"
-                        class="w-full border rounded-lg px-4 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        required>
-                        <option value="Voiture" {{ old('type_vehicule') === 'Voiture' ? 'selected' : '' }}>Voiture</option>
-                        <option value="Moto" {{ old('type_vehicule') === 'Moto' ? 'selected' : '' }}>Moto</option>
-                        <option value="Poids lourd" {{ old('type_vehicule') === 'Poids lourd' ? 'selected' : '' }}>Poids lourd</option>
-                    </select>
+                   <select
+    id="type_vehicule"
+    name="type_vehicule"
+    class="w-full border rounded-lg px-4 py-2">
+
+    <option value="Moto" selected>Moto</option>
+
+</select>
 
                 </div>
 

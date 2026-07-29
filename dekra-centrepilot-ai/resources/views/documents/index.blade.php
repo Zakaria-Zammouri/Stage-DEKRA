@@ -76,18 +76,34 @@
                                         <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style="background:#EEF1FB;">
                                             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none"><path d="M6 3h9l5 5v13H6V3z" stroke="#16233A" stroke-width="1.6" stroke-linejoin="round"/></svg>
                                         </div>
-                                        <span class="font-medium text-gray-900 dark:text-white">{{ $document->titre }}</span>
+                                        <div>
+                                            <span class="font-medium text-gray-900 dark:text-white block">{{ $document->titre }}</span>
+                                            @if($document->type === 'Facture' && $document->invoice)
+                                                <span class="text-xs text-gray-500 dark:text-gray-400 font-mono-data">
+                                                    {{ $document->invoice->numero }} · {{ $document->invoice->client }}
+                                                </span>
+                                            @endif
+                                        </div>
                                     </div>
                                 </td>
                                 <td class="px-6 py-4">
                                     <span class="badge" style="background:#EAF6EF;color:#106640;">{{ $document->type }}</span>
                                 </td>
                                 <td class="px-6 py-4 text-gray-600 dark:text-gray-300">{{ $document->categorie }}</td>
-                                <td class="px-6 py-4 font-mono-data text-xs text-gray-500 dark:text-gray-400">{{ \Carbon\Carbon::parse($document->date_ajout)->format('d/m/Y') }}</td>
+                                <td class="px-6 py-4 font-mono-data text-xs text-gray-500 dark:text-gray-400">
+                                    @if($document->type === 'Facture' && $document->invoice)
+                                        {{ \Carbon\Carbon::parse($document->invoice->date_facture)->format('d/m/Y') }}
+                                    @else
+                                        {{ \Carbon\Carbon::parse($document->date_ajout)->format('d/m/Y') }}
+                                    @endif
+                                </td>
                                 <td class="px-6 py-4">
                                     <div class="flex items-center justify-end gap-1">
                                         <a href="{{ route('documents.show', $document) }}" class="icon-btn" title="Voir">
                                             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" stroke="#374151" stroke-width="1.6"/><circle cx="12" cy="12" r="3" stroke="#374151" stroke-width="1.6"/></svg>
+                                        </a>
+                                        <a href="{{ route('documents.telecharger', $document) }}" class="icon-btn" title="Télécharger">
+                                            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" stroke="#374151" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                         </a>
                                         <a href="{{ route('documents.edit', $document) }}" class="icon-btn" title="Modifier">
                                             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z" stroke="#374151" stroke-width="1.6" stroke-linejoin="round"/></svg>
@@ -123,12 +139,26 @@
                             </div>
                             <div class="min-w-0">
                                 <p class="font-medium text-gray-900 dark:text-white text-sm truncate">{{ $document->titre }}</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 font-mono-data">{{ \Carbon\Carbon::parse($document->date_ajout)->format('d/m/Y') }}</p>
+                                @if($document->type === 'Facture' && $document->invoice)
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 font-mono-data truncate">
+                                        {{ $document->invoice->numero }} · {{ $document->invoice->client }}
+                                    </p>
+                                @endif
+                                <p class="text-xs text-gray-500 dark:text-gray-400 font-mono-data">
+                                    @if($document->type === 'Facture' && $document->invoice)
+                                        {{ \Carbon\Carbon::parse($document->invoice->date_facture)->format('d/m/Y') }}
+                                    @else
+                                        {{ \Carbon\Carbon::parse($document->date_ajout)->format('d/m/Y') }}
+                                    @endif
+                                </p>
                             </div>
                         </a>
                         <div class="flex items-center justify-between">
                             <span class="badge" style="background:#EAF6EF;color:#106640;">{{ $document->type }}</span>
                             <div class="flex gap-1">
+                                <a href="{{ route('documents.telecharger', $document) }}" class="icon-btn" title="Télécharger">
+                                    <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" stroke="#374151" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                </a>
                                 <a href="{{ route('documents.edit', $document) }}" class="icon-btn" title="Modifier">
                                     <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z" stroke="#374151" stroke-width="1.6" stroke-linejoin="round"/></svg>
                                 </a>

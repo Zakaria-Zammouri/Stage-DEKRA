@@ -12,32 +12,55 @@ class DocumentController extends Controller
     /**
      * Liste des documents.
      */
-    public function index(Request $request)
-    {
-        $query = Document::where('user_id', auth()->id());
+  // app/Http/Controllers/DocumentController.php
 
-        if ($request->filled('recherche')) {
+public function index(Request $request)
+{
+    $query = Document::with('invoice')->where('user_id', auth()->id()); // <-- with('invoice') ajouté
 
-            $mot = trim($request->recherche);
+    if ($request->filled('recherche')) {
 
-            $query->where(function ($q) use ($mot) {
+        $mot = trim($request->recherche);
 
-                $q->where('titre', 'like', "%{$mot}%")
-                    ->orWhere('type', 'like', "%{$mot}%")
-                    ->orWhere('categorie', 'like', "%{$mot}%")
-                    ->orWhere('nom_proprietaire', 'like', "%{$mot}%")
-                    ->orWhere('immatriculation', 'like', "%{$mot}%")
-                    ->orWhere('marque', 'like', "%{$mot}%")
-                    ->orWhere('modele', 'like', "%{$mot}%")
-                    ->orWhere('texte_ocr', 'like', "%{$mot}%");
+        $query->where(function ($q) use ($mot) {
 
-            });
-        }
+            $q->where('titre', 'like', "%{$mot}%")
+                ->orWhere('type', 'like', "%{$mot}%")
+                ->orWhere('categorie', 'like', "%{$mot}%")
+                ->orWhere('nom_proprietaire', 'like', "%{$mot}%")
+                ->orWhere('immatriculation', 'like', "%{$mot}%")
+                ->orWhere('marque', 'like', "%{$mot}%")
+                ->orWhere('modele', 'like', "%{$mot}%")
+                ->orWhere('texte_ocr', 'like', "%{$mot}%")
+                ->orWhereHas('invoice', function ($qi) use ($mot) {
+                    $qi->where('numero', 'like', "%{$mot}%")
+                       ->orWhere('client', 'like', "%{$mot}%");
+                });
 
-        $documents = $query->orderBy('created_at', 'desc')->get();
-
-        return view('documents.index', compact('documents'));
+        });
     }
+
+    $documents = $query->orderBy('created_at', 'desc')->get();
+
+    return view('documents.index', compact('documents'));
+}
+
+/**
+ * Télécharger le fichier (force le download, contrairement à "Voir").
+ */
+public function telecharger(Document $document)
+{
+    abort_if($document->user_id !== auth()->id(), 403);
+
+    abort_unless(Storage::disk('public')->exists($document->chemin_fichier), 404);
+
+    $extension = pathinfo($document->chemin_fichier, PATHINFO_EXTENSION);
+
+    return Storage::disk('public')->download(
+        $document->chemin_fichier,
+        $document->titre . '.' . $extension
+    );
+}
 
     /**
      * Formulaire d'ajout.
@@ -174,11 +197,13 @@ $document = Document::create([
      * Afficher un document.
      */
     public function show(Document $document)
-    {
-        abort_if($document->user_id !== auth()->id(), 403);
+{
+    abort_if($document->user_id !== auth()->id(), 403);
 
-        return view('documents.show', compact('document'));
-    }
+    $document->load('invoice');
+
+    return view('documents.show', compact('document'));
+}
 
     /**
      * Formulaire de modification.

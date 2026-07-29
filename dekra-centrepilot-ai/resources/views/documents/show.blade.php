@@ -32,6 +32,33 @@
                 </div>
 
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
+                    @if($document->invoice)
+
+<div class="info-row flex justify-between text-sm">
+    <span class="text-gray-500">Numéro de facture</span>
+
+    <span class="font-medium">
+        {{ $document->invoice->numero }}
+    </span>
+</div>
+
+<div class="info-row flex justify-between text-sm">
+    <span class="text-gray-500">Client</span>
+
+    <span class="font-medium">
+        {{ $document->invoice->client }}
+    </span>
+</div>
+
+<div class="info-row flex justify-between text-sm">
+    <span class="text-gray-500">Date de facture</span>
+
+    <span class="font-medium">
+        {{ $document->invoice->date_facture->format('d/m/Y') }}
+    </span>
+</div>
+
+@endif
                     <div class="info-row flex justify-between text-sm">
                         <span class="text-gray-500 dark:text-gray-400">Type</span>
                         <span class="font-medium text-gray-900 dark:text-white">{{ $document->type }}</span>
@@ -110,14 +137,30 @@
                 @endif
 
                 <div class="flex gap-3 mt-8">
-                    <a href="{{ asset('storage/'.$document->chemin_fichier) }}" target="_blank" class="btn-primary text-white px-5 py-2.5 text-sm inline-flex items-center gap-2">
-                        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        Ouvrir le fichier
-                    </a>
-                    <a href="{{ route('documents.index') }}" class="px-5 py-2.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                        Retour
-                    </a>
-                </div>
+
+    <a href="{{ route('documents.telecharger',$document) }}"
+       class="btn-primary text-white px-5 py-2.5 text-sm inline-flex items-center gap-2">
+
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none">
+            <path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"
+                  stroke="white"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"/>
+        </svg>
+
+        Télécharger
+
+    </a>
+
+    <a href="{{ route('documents.index') }}"
+       class="px-5 py-2.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+
+        Retour
+
+    </a>
+
+</div>
 
             </div>
 

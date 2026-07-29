@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Invoice;
+use App\Models\Document;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use App\Models\TvaRate;
 use App\Services\ControleCoherenceService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class InvoiceController extends Controller
 {
@@ -40,7 +42,8 @@ class InvoiceController extends Controller
      */
     public function create()
     {
-        $rates = TvaRate::pluck('taux', 'type_vehicule');
+       $rates = TvaRate::where('type_vehicule', 'Moto')
+    ->pluck('taux', 'type_vehicule');
 
         return view('invoices.create', compact('rates'));
     }
@@ -53,7 +56,7 @@ class InvoiceController extends Controller
         $request->validate([
             'client'        => 'required|string|max:255',
             'objet'         => 'required|string|max:255',
-            'type_vehicule' => 'required|in:Voiture,Moto,Poids lourd',
+            'type_vehicule' => 'required|in:Moto',
             'montant_ht'    => 'required|numeric|min:0',
             'tva'           => 'required|numeric|min:0',
             'date_facture'  => 'required|date',
@@ -74,19 +77,6 @@ class InvoiceController extends Controller
 
         $montantTTC = $request->montant_ht + $request->tva;
 
-        // Le numéro contient la date du jour (FAC-YYYYMMDD-XXXX), donc le
-        // compteur doit repartir à 1 chaque jour : on compte uniquement les
-        // factures créées aujourd'hui, pas le total depuis le début.
-        //
-        // On utilise withTrashed() pour inclure les factures soft-deleted
-        // dans le calcul : sans ça, supprimer une facture du jour libère
-        // artificiellement un numéro déjà attribué et le fait régénérer,
-        // ce qui provoquait l'erreur de contrainte unique.
-        //
-        // La génération + l'insertion sont faites dans une transaction
-        // verrouillée (lockForUpdate) pour empêcher deux requêtes
-        // concurrentes (double clic, double soumission) de lire le même
-        // compte avant qu'aucune des deux insertions ne soit validée.
         $invoice = DB::transaction(function () use ($request, $montantTTC) {
             $aujourdHui = now()->format('Ymd');
 
@@ -116,9 +106,11 @@ class InvoiceController extends Controller
             ]);
         });
 
+        $this->archiverFacturePDF($invoice);
+
         return redirect()
             ->route('invoices.index')
-            ->with('success', 'Facture créée avec succès.');
+            ->with('success', 'Facture créée et archivée avec succès.');
     }
 
     /**
@@ -138,7 +130,8 @@ class InvoiceController extends Controller
     {
         abort_if($invoice->user_id !== auth()->id(), 403);
 
-        $rates = TvaRate::pluck('taux', 'type_vehicule');
+       $rates = TvaRate::where('type_vehicule', 'Moto')
+    ->pluck('taux', 'type_vehicule');
 
         return view('invoices.edit', compact('invoice', 'rates'));
     }
@@ -153,7 +146,7 @@ class InvoiceController extends Controller
         $request->validate([
             'client'        => 'required|string|max:255',
             'objet'         => 'required|string|max:255',
-            'type_vehicule' => 'required|in:Voiture,Moto,Poids lourd',
+            'type_vehicule' => 'required|in:Moto',
             'montant_ht'    => 'required|numeric|min:0',
             'tva'           => 'required|numeric|min:0',
             'date_facture'  => 'required|date',
@@ -184,6 +177,8 @@ class InvoiceController extends Controller
             'statut'        => $request->statut,
         ]);
 
+        $this->archiverFacturePDF($invoice);
+
         return redirect()
             ->route('invoices.index')
             ->with('success', 'Facture modifiée avec succès.');
@@ -195,6 +190,8 @@ class InvoiceController extends Controller
     public function destroy(Invoice $invoice)
     {
         abort_if($invoice->user_id !== auth()->id(), 403);
+
+        $invoice->document?->delete();
 
         $invoice->delete();
 
@@ -215,5 +212,44 @@ class InvoiceController extends Controller
         ]);
 
         return $pdf->download('Facture-' . $invoice->numero . '.pdf');
+    }
+
+    /**
+     * Génère le PDF de la facture et crée/actualise le Document archivé lié.
+     */
+    private function archiverFacturePDF(Invoice $invoice): void
+    {
+        $pdfContent = Pdf::loadView('invoices.pdf', ['invoice' => $invoice])->output();
+
+        $nomFichier = 'Facture-' . $invoice->numero . '.pdf';
+        $path = 'documents/' . $nomFichier;
+
+        Storage::disk('public')->put($path, $pdfContent);
+
+        $document = Document::withTrashed()->where('invoice_id', $invoice->id)->first();
+
+        if ($document) {
+            $document->restore();
+            $document->update([
+                'titre'          => $nomFichier,
+                'categorie'      => 'Factures',
+                'chemin_fichier' => $path,
+                'description'    => 'Facture n° ' . $invoice->numero . ' — Client : ' . $invoice->client,
+                'date_ajout'     => now(),
+            ]);
+            return;
+        }
+
+        Document::create([
+            'user_id'         => $invoice->user_id,
+            'invoice_id'      => $invoice->id,
+            'titre'           => $nomFichier,
+            'type'            => 'Facture',
+            'categorie'       => 'Factures',
+            'chemin_fichier'  => $path,
+            'description'     => 'Facture n° ' . $invoice->numero . ' — Client : ' . $invoice->client,
+            'texte_ocr'       => null,
+            'date_ajout'      => now(),
+        ]);
     }
 }

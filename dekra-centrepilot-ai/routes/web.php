@@ -74,6 +74,9 @@ Route::middleware('auth')->group(function () {
 
     Route::resource('documents', DocumentController::class);
 
+    Route::get('/documents/{document}/telecharger', [DocumentController::class, 'telecharger'])
+    ->name('documents.telecharger');
+
     /*
     |--------------------------------------------------------------------------
     | Virements bancaires (ordres de virement pré-remplis)

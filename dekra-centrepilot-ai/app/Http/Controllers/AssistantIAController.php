@@ -42,12 +42,12 @@ class AssistantIAController extends Controller
 
         try {
 
-            $response = Http::timeout(120)->post(
-                "{$this->fastApiUrl}/assistant-ia",
-                [
-                    'question' => $question
-                ]
-            );
+          $response = Http::timeout(30)->post(
+    "{$this->fastApiUrl}/assistant",
+    [
+        'question' => $question
+    ]
+);
 
             if ($response->successful()) {
 
@@ -107,31 +107,37 @@ class AssistantIAController extends Controller
             'erreur' => "Impossible de contacter le service d'analyse.",
         ];
 
-        try {
+      try {
 
-            $requete = Http::timeout(120)->attach(
-                'file',
-                file_get_contents($fichier->getRealPath()),
-                $fichier->getClientOriginalName()
-            );
+    $response = Http::timeout(300)
+        ->attach(
+            'file',
+            file_get_contents($fichier->getRealPath()),
+            $fichier->getClientOriginalName()
+        )
+        ->post(
+            "{$this->fastApiUrl}/analyser-document",
+            [
+                'type_document' => $request->input('type_document')
+            ]
+        );
 
-            if ($request->filled('type_document')) {
-                $requete = $requete->attach('type_document', $request->input('type_document'));
-            }
+    if ($response->successful()) {
 
-            $response = $requete->post("{$this->fastApiUrl}/analyser-document");
+        $resultatAnalyse = $response->json();
 
-            if ($response->successful()) {
-                $resultatAnalyse = $response->json();
-            } else {
-                $resultatAnalyse['erreur'] = "Le service d'analyse a répondu avec une erreur (code {$response->status()}).";
-            }
+    } else {
 
-        } catch (\Exception $e) {
+        $resultatAnalyse['erreur'] =
+            "Erreur {$response->status()} : ".$response->body();
 
-            $resultatAnalyse['erreur'] = "Erreur : " . $e->getMessage();
+    }
 
-        }
+} catch (\Exception $e) {
+
+    $resultatAnalyse['erreur'] = $e->getMessage();
+
+}
 
         // Enregistrement dans le même historique que les questions, avec type = 'document'
         AssistantIA::create([

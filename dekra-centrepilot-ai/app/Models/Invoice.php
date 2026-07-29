@@ -37,4 +37,9 @@ class Invoice extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function document()
+    {
+        return $this->hasOne(Document::class);
+    }
 }
