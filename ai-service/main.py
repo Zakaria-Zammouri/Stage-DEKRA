@@ -5,6 +5,7 @@ import pytesseract
 import re
 import io
 import json
+import time
 
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
@@ -61,12 +62,22 @@ def extraire_texte_document(contenu: bytes, filename: str, content_type: str) ->
 
     if est_pdf:
 
+        t_convert = time.time()
+
+        # dpi=150 au lieu du défaut (souvent 200-300) : suffisant pour l'OCR
+        # et nettement plus rapide sur les PDF multi-pages.
         images = convert_from_bytes(
             contenu,
-            poppler_path=POPPLER_PATH
+            poppler_path=POPPLER_PATH,
+            dpi=150
         )
 
-        for image in images:
+        print(f"    [OCR] Conversion PDF -> images : {time.time() - t_convert:.1f}s "
+              f"({len(images)} page(s))")
+
+        for i, image in enumerate(images):
+
+            t_page = time.time()
 
             texte += pytesseract.image_to_string(
                 image,
@@ -74,6 +85,8 @@ def extraire_texte_document(contenu: bytes, filename: str, content_type: str) ->
             )
 
             texte += "\n"
+
+            print(f"    [OCR] Page {i + 1}/{len(images)} : {time.time() - t_page:.1f}s")
 
     else:
 
@@ -935,19 +948,27 @@ async def analyser_document(
     type_document: str = Form(None)
 ):
 
+    t_debut = time.time()
+
     contenu = await file.read()
 
+    t0 = time.time()
     texte = extraire_texte_document(
         contenu,
         file.filename,
         file.content_type
     )
+    print(f"⏱ OCR total : {time.time() - t0:.1f}s")
 
     print("========== ANALYSE DOCUMENT (OCR) ==========")
     print(texte)
     print("==============================================")
 
+    t1 = time.time()
     resultat = extraire_champs_via_gemma(texte, type_document)
+    print(f"⏱ Gemma (extraction) : {time.time() - t1:.1f}s")
+
+    print(f"⏱ TOTAL /analyser-document : {time.time() - t_debut:.1f}s")
 
     resultat["texte"] = texte
 

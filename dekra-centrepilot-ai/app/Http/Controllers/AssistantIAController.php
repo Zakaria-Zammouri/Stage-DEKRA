@@ -36,37 +36,18 @@ class AssistantIAController extends Controller
             'question' => 'required|string|max:1000',
         ]);
 
-      $question = strtolower(trim($request->question));
-      if (str_contains($question, 'facture')) {
-    // répondre depuis MySQL
-}
-
-if (str_contains($question, 'document')) {
-    // répondre depuis MySQL
-}
-
-if (str_contains($question, 'tva')) {
-    // répondre depuis MySQL
-}
-
-if (str_contains($question, 'virement')) {
-    // répondre depuis MySQL
-}
-
-if (str_contains($question, 'rappel')) {
-    // répondre depuis MySQL
-}
+        $question = strtolower(trim($request->question));
 
         $reponse = "Impossible de contacter l'assistant IA.";
 
         try {
 
-          $response = Http::timeout(30)->post(
-    "{$this->fastApiUrl}/assistant",
-    [
-        'question' => $question
-    ]
-);
+            $response = Http::timeout(30)->post(
+                "{$this->fastApiUrl}/assistant",
+                [
+                    'question' => $question
+                ]
+            );
 
             if ($response->successful()) {
 
@@ -108,7 +89,9 @@ if (str_contains($question, 'rappel')) {
      */
     public function analyserDocument(Request $request)
     {
-        set_time_limit(150);
+        // IMPORTANT : doit être >= au timeout Guzzle ci-dessous (300s)
+        // sinon PHP tue le script avant que Guzzle ait fini d'attendre.
+        set_time_limit(310);
 
         $request->validate([
             'file' => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240', // 10 Mo max
@@ -126,37 +109,44 @@ if (str_contains($question, 'rappel')) {
             'erreur' => "Impossible de contacter le service d'analyse.",
         ];
 
-      try {
+        try {
 
-    $response = Http::timeout(300)
-        ->attach(
-            'file',
-            file_get_contents($fichier->getRealPath()),
-            $fichier->getClientOriginalName()
-        )
-        ->post(
-            "{$this->fastApiUrl}/analyser-document",
-            [
-                'type_document' => $request->input('type_document')
-            ]
-        );
+            $response = Http::timeout(300)
+                ->connectTimeout(10)
+                ->attach(
+                    'file',
+                    file_get_contents($fichier->getRealPath()),
+                    $fichier->getClientOriginalName()
+                )
+                ->post(
+                    "{$this->fastApiUrl}/analyser-document",
+                    [
+                        'type_document' => $request->input('type_document')
+                    ]
+                );
 
-    if ($response->successful()) {
+            if ($response->successful()) {
 
-        $resultatAnalyse = $response->json();
+                $resultatAnalyse = $response->json();
 
-    } else {
+            } else {
 
-        $resultatAnalyse['erreur'] =
-            "Erreur {$response->status()} : ".$response->body();
+                $resultatAnalyse['erreur'] =
+                    "Erreur {$response->status()} : " . $response->body();
 
-    }
+            }
 
-} catch (\Exception $e) {
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
 
-    $resultatAnalyse['erreur'] = $e->getMessage();
+            $resultatAnalyse['erreur'] =
+                "Impossible de contacter le service Python (port 8001). " .
+                "Vérifiez qu'uvicorn est bien lancé. Détail : " . $e->getMessage();
 
-}
+        } catch (\Exception $e) {
+
+            $resultatAnalyse['erreur'] = $e->getMessage();
+
+        }
 
         // Enregistrement dans le même historique que les questions, avec type = 'document'
         AssistantIA::create([
