@@ -101,10 +101,6 @@
                     Bienvenue {{ Auth::user()->name }}
                 </h1>
 
-                <p class="text-sm" style="color:#94A3B8;">
-                    Voici un aperçu de l'activité administrative du centre.
-                </p>
-
             </div>
 
            <!-- Rappels à venir -->

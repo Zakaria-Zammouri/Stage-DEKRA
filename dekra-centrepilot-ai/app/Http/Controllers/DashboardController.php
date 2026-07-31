@@ -70,7 +70,7 @@ class DashboardController extends Controller
 
         for ($i = 11; $i >= 0; $i--) {
 
-            $date = now()->subMonths($i);
+          $date = now()->startOfMonth()->subMonths($i);
 
             $mois[] = $date->translatedFormat('M Y');
 
